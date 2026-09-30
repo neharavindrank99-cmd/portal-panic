@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal Panic</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: white;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 25px 0 5px;
+      font-size: 42px;
+    }
+
+    .subtitle {
+      color: #cbd5e1;
+      margin-bottom: 20px;
+    }
+
+    .room-box {
+      margin: 20px auto;
+      padding: 25px;
+      width: 90%;
+      max-width: 500px;
+      background: #1e293b;
+      border: 2px solid #475569;
+      border-radius: 15px;
+    }
+
+    .room-box h2 {
+      margin-top: 0;
+    }
+
+    .room-box input {
+      padding: 13px;
+      width: 200px;
+      border: none;
+      border-radius: 8px;
+      font-size: 18px;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    button {
+      padding: 12px 20px;
+      margin: 8px 4px;
+      border: none;
+      border-radius: 8px;
+      background: #8b5cf6;
+      color: white;
+      font-size: 17px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #7c3aed;
+    }
+
+    #roomMessage {
+      color: #cbd5e1;
+      min-height: 25px;
+    }
+
+    .score {
+      font-size: 24px;
+      margin: 15px;
+    }
+
+    .game-area {
+      width: 90%;
+      max-width: 800px;
+      height: 500px;
+      margin: 20px auto;
+      background: #1e293b;
+      border: 3px solid #64748b;
+      border-radius: 15px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .portal {
+      width: 75px;
+      height: 75px;
+      border-radius: 50%;
+      border: 8px solid #c084fc;
+      background: #312e81;
+      box-shadow: 0 0 25px #c084fc;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+    }
+
+    .message {
+      font-size: 18px;
+      color: #cbd5e1;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>🌀 Portal Panic</h1>
+
+  <div class="subtitle">
+    Multiplayer Portal Challenge
+  </div>
+
+  <div class="room-box">
+
+    <h2>🔐 Join a Room</h2>
+
+    <input
+      type="text"
+      id="roomCode"
+      maxlength="6"
+      placeholder="ROOM CODE"
+    >
+
+    <br>
+
+    <button id="createRoom">Create Room</button>
+    <button id="joinRoom">Join Room</button>
+
+    <p id="roomMessage">
+      Create a room or enter a room code.
+    </p>
+
+    <p>
+      Players: <span id="playerCount">0</span> / 8
+    </p>
+
+  </div>
+
+  <div class="score">
+    🏆 Score: <span id="score">0</span>
+  </div>
+
+  <button id="startButton">Start Game</button>
+
+  <p class="message" id="message">
+    Create or join a room first.
+  </p>
+
+  <div class="game-area" id="gameArea">
+    <div class="portal" id="portal"></div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script>
+    const socket = io();
+
+    const roomCodeInput = document.getElementById("roomCode");
+    const createRoomButton = document.getElementById("createRoom");
+    const joinRoomButton = document.getElementById("joinRoom");
+
+    const roomMessage = document.getElementById("roomMessage");
+    const playerCount = document.getElementById("playerCount");
+
+    const startButton = document.getElementById("startButton");
+    const portal = document.getElementById("portal");
+    const gameArea = document.getElementById("gameArea");
+
+    const scoreText = document.getElementById("score");
+    const message = document.getElementById("message");
+
+    let score = 0;
+    let gameStarted = false;
+
+    createRoomButton.addEventListener("click", () => {
+      socket.emit("createRoom");
+    });
+
+    joinRoomButton.addEventListener("click", () => {
+      const code = roomCodeInput.value.trim().toUpperCase();
+
+      if (code.length !== 6) {
+        roomMessage.textContent =
+          "Please enter a 6-character room code.";
+        return;
+      }
+
+      socket.emit("joinRoom", code);
+    });
+
+    socket.on("roomCreated", (code) => {
+      roomCodeInput.value = code;
+
+      roomMessage.textContent =
+        "Room created! Share this code with your friends.";
+
+      message.textContent =
+        "Waiting for another player...";
+    });
+
+    socket.on("roomJoined", (code) => {
+      roomCodeInput.value = code;
+
+      roomMessage.textContent =
+        "You joined room " + code;
+
+      message.textContent =
+        "Waiting for the game to start...";
+    });
+
+    socket.on("roomError", (error) => {
+      roomMessage.textContent = error;
+    });
+
+    socket.on("playerCount", (count) => {
+      playerCount.textContent = count;
+    });
+
+    function movePortal() {
+      const maxX =
+        gameArea.clientWidth - portal.offsetWidth;
+
+      const maxY =
+        gameArea.clientHeight - portal.offsetHeight;
+
+      const x = Math.random() * maxX;
+      const y = Math.random() * maxY;
+
+      portal.style.left = x + "px";
+      portal.style.top = y + "px";
+      portal.style.transform = "none";
+    }
+
+    startButton.addEventListener("click", () => {
+
+      if (playerCount.textContent === "0") {
+        message.textContent =
+          "Create or join a room first.";
+        return;
+      }
+
+      score = 0;
+      scoreText.textContent = score;
+
+      gameStarted = true;
+
+      message.textContent =
+        "Catch the portal!";
+
+      movePortal();
+    });
+
+    portal.addEventListener("click", () => {
+
+      if (!gameStarted) {
+        return;
+      }
+
+      score++;
+
+      scoreText.textContent = score;
+
+      movePortal();
+    });
+  </script>
+
+</body>
+</html>
